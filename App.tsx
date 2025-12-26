@@ -16,13 +16,16 @@ import { SortOption, FilterState, User, Product, CartItem, CompanyInfo } from '.
 
 const App: React.FC = () => {
   // Database States
-  const [products, setProducts] = useState<Product[]>(Database.getProducts());
-  const [categoriesMap, setCategoriesMap] = useState<Record<string, string[]>>(Database.getCategories());
-  const [usersList, setUsersList] = useState<User[]>(Database.getUsers());
-  const [storeName, setStoreName] = useState(Database.getStoreName());
-  const [logoUrl, setLogoUrl] = useState<string | null>(Database.getLogoUrl());
-  const [bannerText, setBannerText] = useState(Database.getBannerText());
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(Database.getCompanyInfo());
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categoriesMap, setCategoriesMap] = useState<Record<string, string[]>>({});
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [storeName, setStoreName] = useState("AR SURGICAL HUB");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerText, setBannerText] = useState("");
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    address: "", phone: "", email: "", regNo: "", description: "", workingHours: ""
+  });
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // UI States
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,27 +38,64 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [view, setView] = useState<'store' | 'admin'>('store');
-  
+
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
     subcategories: [],
     minPrice: 0,
-    maxPrice: 1000000 
+    maxPrice: 1000000
   });
 
-  // Sync with Database Service when states change
-  useEffect(() => Database.saveProducts(products), [products]);
-  useEffect(() => Database.saveCategories(categoriesMap), [categoriesMap]);
-  useEffect(() => Database.saveUsers(usersList), [usersList]);
-  useEffect(() => Database.saveStoreName(storeName), [storeName]);
-  useEffect(() => Database.saveLogoUrl(logoUrl), [logoUrl]);
-  useEffect(() => Database.saveBannerText(bannerText), [bannerText]);
-  useEffect(() => Database.saveCompanyInfo(companyInfo), [companyInfo]);
+  // Load Initial Data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [
+          fetchedProducts,
+          fetchedCategories,
+          fetchedUsers,
+          fetchedStoreName,
+          fetchedLogoUrl,
+          fetchedBannerText,
+          fetchedCompanyInfo
+        ] = await Promise.all([
+          Database.getProducts(),
+          Database.getCategories(),
+          Database.getUsers(),
+          Database.getStoreName(),
+          Database.getLogoUrl(),
+          Database.getBannerText(),
+          Database.getCompanyInfo()
+        ]);
+
+        setProducts(fetchedProducts);
+        setCategoriesMap(fetchedCategories);
+        setUsersList(fetchedUsers);
+        setStoreName(fetchedStoreName);
+        setLogoUrl(fetchedLogoUrl);
+        setBannerText(fetchedBannerText);
+        setCompanyInfo(fetchedCompanyInfo);
+        setIsDataLoaded(true);
+      } catch (error) {
+        console.error("Failed to load initial data", error);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Sync with Database Service when states change (only after initial load)
+  useEffect(() => { if (isDataLoaded) Database.saveProducts(products); }, [products, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveCategories(categoriesMap); }, [categoriesMap, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveUsers(usersList); }, [usersList, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveStoreName(storeName); }, [storeName, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveLogoUrl(logoUrl); }, [logoUrl, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveBannerText(bannerText); }, [bannerText, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) Database.saveCompanyInfo(companyInfo); }, [companyInfo, isDataLoaded]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let result = products.filter(p => {
-      const matchesSearch = 
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.category.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = filters.categories.length === 0 || filters.categories.includes(p.category);
       const matchesSubcategory = filters.subcategories.length === 0 || filters.subcategories.includes(p.subcategory);
@@ -74,7 +114,7 @@ const App: React.FC = () => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => 
+        return prev.map(item =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
@@ -99,10 +139,10 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-50/50">
       <TopBanner text={bannerText} />
-      <Header 
-        user={user} 
-        onAuthClick={setAuthModal} 
-        onLogout={() => { setUser(null); setView('store'); }} 
+      <Header
+        user={user}
+        onAuthClick={setAuthModal}
+        onLogout={() => { setUser(null); setView('store'); }}
         cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
         onCartClick={() => setIsCartOpen(true)}
         onAdminClick={() => setView('admin')}
@@ -112,8 +152,8 @@ const App: React.FC = () => {
       />
 
       {view === 'admin' && user?.role === 'Admin' ? (
-        <AdminDashboard 
-          products={products} setProducts={setProducts} 
+        <AdminDashboard
+          products={products} setProducts={setProducts}
           categoriesMap={categoriesMap} setCategoriesMap={setCategoriesMap}
           users={usersList} setUsers={setUsersList}
           bannerText={bannerText} setBannerText={setBannerText}
@@ -136,9 +176,9 @@ const App: React.FC = () => {
           </section>
 
           <div className="flex flex-grow container mx-auto px-4 lg:px-8 py-10 gap-10">
-            <FilterSidebar 
-              filters={filters} setFilters={setFilters} 
-              isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} 
+            <FilterSidebar
+              filters={filters} setFilters={setFilters}
+              isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)}
               categoriesMap={categoriesMap}
             />
 
@@ -146,16 +186,16 @@ const App: React.FC = () => {
               <div className="bg-white rounded-[24px] border border-gray-100 p-4 shadow-xl shadow-gray-200/40 flex flex-col md:flex-row md:items-center gap-6">
                 <div className="relative flex-grow">
                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search catalog..." 
+                    placeholder="Search catalog..."
                     className="w-full pl-14 pr-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-4 ring-blue-500/5 outline-none transition-all text-gray-900 font-bold"
                   />
                 </div>
                 <div className="flex items-center gap-4">
-                  <select 
+                  <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortOption)}
                     className="bg-gray-50 border border-gray-100 px-6 py-4 rounded-2xl text-xs font-black text-gray-700 outline-none uppercase tracking-widest"
@@ -165,7 +205,7 @@ const App: React.FC = () => {
                     <option>Price: High to Low</option>
                     <option>Popularity</option>
                   </select>
-                  <button 
+                  <button
                     onClick={() => setIsFilterOpen(true)}
                     className="lg:hidden p-4 bg-blue-600 text-white rounded-2xl"
                   >
@@ -176,9 +216,9 @@ const App: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
                 {filteredAndSortedProducts.map(product => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
+                  <ProductCard
+                    key={product.id}
+                    product={product}
                     onAddToCart={addToCart}
                     onViewDetails={setSelectedProduct}
                   />
@@ -195,9 +235,9 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      <AuthModals 
-        type={authModal} onClose={() => setAuthModal(null)} 
-        onSuccess={(u) => { setUser(u); setAuthModal(null); }} 
+      <AuthModals
+        type={authModal} onClose={() => setAuthModal(null)}
+        onSuccess={(u) => { setUser(u); setAuthModal(null); }}
         onSwitchType={(t) => setAuthModal(t)}
         storeName={storeName} logoUrl={logoUrl}
       />
