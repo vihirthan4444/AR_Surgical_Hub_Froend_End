@@ -1,0 +1,7 @@
+{
+  "name": "AR Surgical Hub",
+  "description": "A high-quality medical equipment catalog and marketplace for surgical instruments and healthcare gear.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
